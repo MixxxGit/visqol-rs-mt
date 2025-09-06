@@ -1,6 +1,7 @@
 use crate::{
     analysis_window::AnalysisWindow, audio_signal::AudioSignal, audio_utils,
-    comparison_patches_selector::ComparisonPatchesSelector,
+    comparison_patches_selector::ComparisonPatchesSelector, constants,
+    gammatone_filterbank::GammatoneFilterbank,
     gammatone_spectrogram_builder::GammatoneSpectrogramBuilder, patch_creator::PatchCreator,
     patch_similarity_comparator::PatchSimilarityResult, similarity_result::SimilarityResult,
     similarity_to_quality_mapper::SimilarityToQualityMapper,
@@ -15,8 +16,6 @@ use std::error::Error;
 pub fn calculate_similarity<const NUM_BANDS: usize>(
     ref_signal: &mut AudioSignal,
     deg_signal: &mut AudioSignal,
-    spect_builder: &mut GammatoneSpectrogramBuilder<NUM_BANDS>,
-    window: &AnalysisWindow,
     patch_creator: &dyn PatchCreator,
     selector: &ComparisonPatchesSelector,
     sim_to_qual_mapper: &dyn SimilarityToQualityMapper,
@@ -25,14 +24,24 @@ pub fn calculate_similarity<const NUM_BANDS: usize>(
     /////////////////// Stage 1: Preprocessing ///////////////////
     let deg_signal_scaled =
         audio_utils::scale_to_match_sound_pressure_level(ref_signal, deg_signal);
-    let mut ref_spectrogram = spect_builder.build(ref_signal, window)?;
-    let mut deg_spectrogram = spect_builder.build(&deg_signal_scaled, window)?;
+    let mut spect_builder = GammatoneSpectrogramBuilder::<NUM_BANDS>::new(
+        GammatoneFilterbank::new(constants::MINIMUM_FREQ),
+    );
+
+    let window = AnalysisWindow::new(
+        ref_signal.sample_rate,
+        constants::OVERLAP,
+        constants::WINDOW_DURATION,
+    );
+
+    let mut ref_spectrogram = spect_builder.build(ref_signal, &window)?;
+    let mut deg_spectrogram = spect_builder.build(&deg_signal_scaled, &window)?;
 
     audio_utils::prepare_spectrograms_for_comparison(&mut ref_spectrogram, &mut deg_spectrogram);
 
     /////////////// Stage 2: Feature selection and similarity measure ////////////
     let mut ref_patch_indices =
-        patch_creator.create_ref_patch_indices(&ref_spectrogram.data, ref_signal, window)?;
+        patch_creator.create_ref_patch_indices(&ref_spectrogram.data, ref_signal, &window)?;
 
     let frame_duration = calculate_frame_duration(
         window.size as f64 * window.overlap,
@@ -52,12 +61,11 @@ pub fn calculate_similarity<const NUM_BANDS: usize>(
     // Realign the patches in time domain subsignals that start at the coarse
     // patch times.
 
-    let realign_result = selector.finely_align_and_recreate_patches(
+    let realign_result = selector.finely_align_and_recreate_patches::<NUM_BANDS>(
         &mut sim_match_info,
         ref_signal,
         &deg_signal_scaled,
-        spect_builder,
-        window,
+        &window,
     )?;
     sim_match_info = realign_result;
 

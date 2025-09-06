@@ -2,13 +2,10 @@ use std::error::Error;
 
 use crate::{
     alignment,
-    analysis_window::AnalysisWindow,
     audio_signal::AudioSignal,
     audio_utils,
     comparison_patches_selector::ComparisonPatchesSelector,
     constants::{self, PATCH_SIZE_AUDIO, PATCH_SIZE_SPEECH},
-    gammatone_filterbank::GammatoneFilterbank,
-    gammatone_spectrogram_builder::GammatoneSpectrogramBuilder,
     image_patch_creator::ImagePatchCreator,
     neurogram_similiarity_index_measure::NeurogramSimiliarityIndexMeasure,
     patch_creator::PatchCreator,
@@ -27,7 +24,6 @@ pub struct VisqolManager<const NUM_BANDS: usize> {
     search_window: usize,
     patch_creator: Box<dyn PatchCreator>,
     patch_selector: ComparisonPatchesSelector,
-    spectrogram_builder: GammatoneSpectrogramBuilder<NUM_BANDS>,
     sim_to_quality_mapper: Box<dyn SimilarityToQualityMapper>,
 }
 
@@ -51,10 +47,6 @@ impl<const NUM_BANDS: usize> VisqolManager<NUM_BANDS> {
             }
         }
 
-        let spectrogram_builder = GammatoneSpectrogramBuilder::<NUM_BANDS>::new(
-            GammatoneFilterbank::new(constants::MINIMUM_FREQ),
-        );
-
         let patch_selector =
             ComparisonPatchesSelector::new(NeurogramSimiliarityIndexMeasure::default());
 
@@ -62,7 +54,6 @@ impl<const NUM_BANDS: usize> VisqolManager<NUM_BANDS> {
             search_window: window_size,
             patch_creator,
             patch_selector,
-            spectrogram_builder,
             sim_to_quality_mapper,
         }
     }
@@ -89,17 +80,9 @@ impl<const NUM_BANDS: usize> VisqolManager<NUM_BANDS> {
         let (mut deg_signal, _) = alignment::globally_align(ref_signal, deg_signal)
             .ok_or(VisqolError::FailedToAlignSignals)?;
 
-        let window = AnalysisWindow::new(
-            ref_signal.sample_rate,
-            constants::OVERLAP,
-            constants::WINDOW_DURATION,
-        );
-
-        visqol::calculate_similarity(
+        visqol::calculate_similarity::<NUM_BANDS>(
             ref_signal,
             &mut deg_signal,
-            &mut self.spectrogram_builder, // this does not need to be self
-            &window,
             self.patch_creator.as_mut(),
             &self.patch_selector,
             self.sim_to_quality_mapper.as_mut(),
