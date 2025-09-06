@@ -127,3 +127,28 @@ impl<const NUM_BANDS: usize> VisqolManager<NUM_BANDS> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn visqol_returns_expected_mos() {
+        use super::*;
+        use crate::constants;
+        let mut vm = VisqolManager::<{ constants::NUM_BANDS_SPEECH }>::new(
+            Variant::Wideband {
+                use_unscaled_mos_mapping: false,
+            },
+            60,
+        );
+
+        let res = vm
+            .run(
+                "test_data/clean_speech/reference_signal_16k.wav",
+                "test_data/clean_speech/degraded_signal_16k.wav",
+            )
+            .unwrap();
+        assert_abs_diff_eq!(res.moslqo, 2.35, epsilon = 0.01);
+    }
+}
