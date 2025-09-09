@@ -1,4 +1,5 @@
-# Visqol-RS
+# Visqol-RS-MT
+- Multithreaded edition
 - Implementation of the [Visqol v3.1](https://github.com/google/visqol) algorithm for speech quality evaluation in Rust
 - Builds a command line executable which produces Visqol scores, with a command line interface identical to the C++ implementation.
 - Or you can compute scores within your rust code! Just note that you will need to compile in Release mode.
